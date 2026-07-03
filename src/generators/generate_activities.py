@@ -7,6 +7,7 @@ import pandas as pd
 from faker import Faker
 from kafka import KafkaProducer
 
+from config.settings import KAFKA_BOOTSTRAP_SERVER
 
 fake = Faker("fr_FR")
 
@@ -52,7 +53,7 @@ def main() -> None:
     employees = load_employees()
 
     producer = KafkaProducer(
-        bootstrap_servers="localhost:9092",
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVER,
         value_serializer=lambda value: json.dumps(value, ensure_ascii=False).encode("utf-8"),
     )
 

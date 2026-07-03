@@ -1,0 +1,15 @@
+id: generate-and-consume
+namespace: sport
+
+tasks:
+  - id: generate
+    type: io.kestra.plugin.scripts.python.Commands
+
+    commands:
+      - python -m src.generators.generate_activities
+
+  - id: consume
+    type: io.kestra.plugin.scripts.python.Commands
+
+    commands:
+      - python -m src.consumers.consume_activities

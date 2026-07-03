@@ -9,6 +9,8 @@ from src.notifications.slack import (
     send_slack_message,
 )
 
+from config.settings import KAFKA_BOOTSTRAP_SERVER
+
 
 def main() -> None:
     """
@@ -19,7 +21,7 @@ def main() -> None:
 
     consumer = KafkaConsumer(
         "sport-activities",
-        bootstrap_servers="localhost:9092",
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVER,
         auto_offset_reset="earliest",
         enable_auto_commit=True,
         group_id="sport-activities-consumer",
