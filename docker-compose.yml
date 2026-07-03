@@ -1,0 +1,101 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: sport_postgres
+
+    environment:
+      POSTGRES_USER: sport_user
+      POSTGRES_PASSWORD: sport_password
+      POSTGRES_DB: sport_data
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    restart: unless-stopped
+
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: sport_metabase
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - postgres
+
+    restart: unless-stopped
+
+
+  kestra:
+    image: kestra/kestra:latest
+    container_name: sport_kestra
+
+    command: server standalone
+
+    ports:
+      - "8080:8080"
+
+    depends_on:
+      - postgres
+
+    environment:
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://postgres:5432/sport_data
+            driverClassName: org.postgresql.Driver
+            username: sport_user
+            password: sport_password
+
+        kestra:
+          repository:
+            type: postgres
+
+          queue:
+            type: postgres
+
+          storage:
+            type: local
+            local:
+              basePath: "/app/storage"
+
+    volumes:
+      - kestra_storage:/app/storage
+
+    restart: unless-stopped
+
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: sport_redpanda
+
+    command:
+      - redpanda
+      - start
+      - --mode
+      - dev-container
+      - --smp
+      - "1"
+      - --memory
+      - "1G"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data:
+  kestra_storage:
