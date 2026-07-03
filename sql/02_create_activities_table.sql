@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS bronze.activities (
-    activity_id INTEGER PRIMARY KEY,
+    activity_id BIGINT PRIMARY KEY,
     employee_id INTEGER NOT NULL,
     start_date TIMESTAMP NOT NULL,
     end_date TIMESTAMP NOT NULL,

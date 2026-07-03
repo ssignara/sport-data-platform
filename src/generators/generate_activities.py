@@ -26,8 +26,15 @@ def generate_activity(activity_id: int, employee_id: int) -> dict:
     duration_s = random.randint(1200, 14400)
 
     distance_m = None
-    if sport not in ["Escalade", "Tennis"]:
-        distance_m = random.randint(1000, 60000)
+
+    if sport == "Course à pied":
+        distance_m = random.randint(3000, 25000)
+    elif sport == "Vélo":
+        distance_m = random.randint(5000, 80000)
+    elif sport == "Randonnée":
+        distance_m = random.randint(3000, 30000)
+    elif sport == "Natation":
+        distance_m = random.randint(500, 5000)
 
     return {
         "activity_id": activity_id,
@@ -49,7 +56,8 @@ def main() -> None:
         value_serializer=lambda value: json.dumps(value, ensure_ascii=False).encode("utf-8"),
     )
 
-    activity_id = 1
+    activity_id = int(datetime.now().timestamp() * 1000)
+    total_generated = 0
 
     for _, employee in employees.iterrows():
         employee_id = employee["ID salarié"]
@@ -58,12 +66,14 @@ def main() -> None:
         for _ in range(number_of_activities):
             activity = generate_activity(activity_id, employee_id)
             producer.send("sport-activities", value=activity)
+
             activity_id += 1
+            total_generated += 1
 
     producer.flush()
     producer.close()
 
-    print(f"{activity_id - 1} activités publiées dans Redpanda.")
+    print(f"{total_generated} activités publiées dans Redpanda.")
 
 
 if __name__ == "__main__":
