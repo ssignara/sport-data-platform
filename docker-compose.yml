@@ -33,6 +33,13 @@ services:
       - postgres
       - redpanda
     environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: sport_data
+      DB_USER: sport_user
+      DB_PASSWORD: sport_password
+      KAFKA_BOOTSTRAP_SERVER: redpanda:9092
+      PYTHONPATH: /app/project
       KESTRA_CONFIGURATION: |
         datasources:
           postgres:
