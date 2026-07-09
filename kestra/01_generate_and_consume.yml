@@ -2,12 +2,27 @@ id: generate-and-consume
 namespace: sport
 
 tasks:
+
+  - id: install_dependencies
+    type: io.kestra.plugin.scripts.shell.Commands
+
+    commands:
+      - pip install -r requirements.txt
+
   - id: generate_activities
     type: io.kestra.plugin.scripts.shell.Commands
+
     commands:
       - python -m src.generators.generate_activities
 
+    dependsOn:
+      - install_dependencies
+
   - id: consume_activities
     type: io.kestra.plugin.scripts.shell.Commands
+
     commands:
       - python -m src.consumers.consume_activities
+
+    dependsOn:
+      - generate_activities
