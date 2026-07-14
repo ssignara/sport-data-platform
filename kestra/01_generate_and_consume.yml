@@ -1,28 +1,22 @@
-id: generate-and-consume
+id: generate-consume-quality
 namespace: sport
 
+description: >
+  Génère les activités sportives, les charge dans PostgreSQL
+  puis contrôle leur qualité avec Soda.
+
 tasks:
+  - id: generate
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/generate
+    method: POST
 
-  - id: install_dependencies
-    type: io.kestra.plugin.scripts.shell.Commands
+  - id: consume
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/consume
+    method: POST
 
-    commands:
-      - pip install -r requirements.txt
-
-  - id: generate_activities
-    type: io.kestra.plugin.scripts.shell.Commands
-
-    commands:
-      - python -m src.generators.generate_activities
-
-    dependsOn:
-      - install_dependencies
-
-  - id: consume_activities
-    type: io.kestra.plugin.scripts.shell.Commands
-
-    commands:
-      - python -m src.consumers.consume_activities
-
-    dependsOn:
-      - generate_activities
+  - id: quality
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/quality
+    method: POST
