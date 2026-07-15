@@ -1,9 +1,19 @@
+# Image expérimentale conservée à titre de référence.
+# Elle n'est pas utilisée par le docker-compose actuel.
+#
+# L'architecture finale utilise :
+# - l'image officielle Kestra pour l'orchestration ;
+# - un conteneur sport_app dédié à l'exécution du code Python.
+
 FROM kestra/kestra:latest
 
 USER root
 
 COPY requirements.txt /tmp/requirements.txt
 
-RUN pip install --break-system-packages --no-cache-dir -r /tmp/requirements.txt
+RUN pip install \
+    --break-system-packages \
+    --no-cache-dir \
+    -r /tmp/requirements.txt
 
 USER kestra
