@@ -1,0 +1,46 @@
+checks for activities:
+  - row_count > 0
+
+  - missing_count(activity_id) = 0
+  - duplicate_count(activity_id) = 0
+
+  - missing_count(employee_id) = 0
+  - missing_count(start_date) = 0
+  - missing_count(end_date) = 0
+  - missing_count(sport_type) = 0
+  - missing_count(duration_s) = 0
+
+  - invalid_count(duration_s) = 0:
+      valid min: 1
+
+  - invalid_count(distance_m) = 0:
+      valid min: 0
+
+  - failed rows:
+      name: La date de fin doit être postérieure à la date de début
+      fail query: |
+        SELECT *
+        FROM bronze.activities
+        WHERE end_date <= start_date
+
+  - failed rows:
+      name: Chaque activité doit correspondre à un salarié existant
+      fail query: |
+        SELECT a.*
+        FROM bronze.activities a
+        LEFT JOIN bronze.employees e
+          ON a.employee_id = e.employee_id
+        WHERE e.employee_id IS NULL
+
+checks for employees:
+  - row_count = 161
+
+  - missing_count(employee_id) = 0
+  - duplicate_count(employee_id) = 0
+  - missing_count(first_name) = 0
+  - missing_count(last_name) = 0
+  - missing_count(annual_salary) = 0
+  - missing_count(transport_mode) = 0
+
+  - invalid_count(annual_salary) = 0:
+      valid min: 1

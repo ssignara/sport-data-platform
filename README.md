@@ -2,79 +2,181 @@
 
 ## 📖 Présentation
 
-Ce projet a été réalisé dans le cadre de la formation **Data Engineer** d'OpenClassrooms.
+Sport Data Platform est une plateforme de traitement de données sportives développée dans le cadre du projet n°12 de la formation **Data Engineer OpenClassrooms**.
 
-L'objectif est de concevoir une plateforme de traitement de données sportives permettant de :
+L'objectif est de mettre en place une architecture de données moderne permettant de :
 
-- générer des activités sportives pour les collaborateurs d'une entreprise ;
-- diffuser ces événements via une architecture événementielle ;
-- stocker les données dans PostgreSQL ;
+- générer automatiquement des activités sportives d'entreprise ;
+- diffuser ces activités sous forme d'événements via Redpanda (Kafka) ;
+- charger les données dans PostgreSQL ;
 - automatiser les traitements avec Kestra ;
-- contrôler la qualité des données avec Soda ;
-- transformer les données avec dbt ;
-- visualiser les indicateurs dans Metabase ;
-- envoyer des notifications via Slack.
+- transformer les données SQL ;
+- produire des indicateurs métier ;
+- créer des tableaux de bord interactifs avec Metabase.
 
 ---
 
-## 🏗️ Architecture technique
+# 🏗️ Architecture
 
-Le projet repose sur les composants suivants :
+```
+              Générateur Python
+                     │
+                     ▼
+              Redpanda (Kafka)
+                     │
+                     ▼
+              Consumer Python
+                     │
+                     ▼
+              PostgreSQL (Bronze)
+                     │
+                     ▼
+            Vues Analytics SQL
+                     │
+                     ▼
+                Metabase
+```
 
-| Composant | Rôle |
-|-----------|------|
+Les traitements sont orchestrés par **Kestra**.
+
+---
+
+# ⚙️ Technologies
+
+| Technologie | Utilisation |
+|-------------|-------------|
 | Python | Génération et traitement des données |
-| PostgreSQL | Stockage des données |
-| Redpanda | Broker de messages compatible Kafka |
-| Kestra | Orchestration des traitements |
-| dbt | Transformations SQL |
-| Soda | Contrôle qualité |
-| Metabase | Visualisation des données |
-| Slack | Notifications |
+| FastAPI | API REST |
+| PostgreSQL | Base de données |
+| Redpanda | Streaming d'événements |
+| Kestra | Orchestration |
+| SQL | Reporting |
+| Metabase | Dashboard |
+| Docker | Conteneurisation |
 
 ---
 
-## 📂 Structure du projet
+# 📂 Structure du projet
 
 ```text
-sport-data-platform/
-
-├── config/
+sport-data-platform
+│
 ├── data/
-├── dashboards/
 ├── docs/
-├── kestra/
 ├── sql/
 ├── src/
+│   ├── api/
+│   ├── consumers/
+│   ├── generators/
+│   ├── loaders/
+│   └── ...
+│
 ├── tests/
 ├── docker-compose.yml
+├── Dockerfile.app
+├── Dockerfile.kestra
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## 🚧 État d'avancement
+# 🚀 Lancer le projet
 
-### ✅ Terminé
+## Cloner le dépôt
 
-- Docker
-- PostgreSQL
-- Redpanda
-- Générateur d'activités
-- Consumer Kafka
-- Insertion PostgreSQL
-- Notifications Slack (simulation)
+```bash
+git clone https://github.com/ssignara/sport-data-platform.git
+cd sport-data-platform
+```
 
-### 🔄 En cours
+## Construire les conteneurs
 
-- Kestra
-- dbt
-- Soda
-- Metabase
+```bash
+docker compose up --build
+```
+
+Les services disponibles sont :
+
+| Service | URL |
+|----------|-----|
+| API FastAPI | http://localhost:8001/docs |
+| Kestra | http://localhost:8080 |
+| Metabase | http://localhost:3000 |
+| PostgreSQL | localhost:5432 |
+| Redpanda | localhost:19092 |
 
 ---
 
-## 👤 Auteur
+# 📊 Fonctionnalités
+
+## Génération d'activités
+
+Le générateur crée automatiquement des activités sportives réalistes à partir des données RH.
+
+Exemple :
+
+- course à pied
+- natation
+- randonnée
+- vélo
+- fitness
+
+---
+
+## Streaming
+
+Les activités sont publiées dans Redpanda puis consommées automatiquement avant d'être enregistrées dans PostgreSQL.
+
+---
+
+## Reporting
+
+Le projet fournit plusieurs vues SQL :
+
+- Global KPIs
+- Activités par sport
+- Activités par mois
+- Synthèse par salarié
+
+---
+
+## Dashboard
+
+Les indicateurs sont visualisables dans Metabase.
+
+---
+
+# 📦 Architecture de la base
+
+```
+bronze
+│
+├── employees
+└── activities
+
+analytics
+│
+├── global_kpis
+├── employee_activity_summary
+├── activities_by_sport
+└── activities_by_month
+```
+
+---
+
+# 🧪 Tests
+
+Les traitements peuvent être exécutés via :
+
+- API FastAPI
+- Kestra
+- SQL PostgreSQL
+
+---
+
+# 👤 Auteur
 
 **Sokhna Signara Gueye**
+
+Projet réalisé dans le cadre de la formation **Data Engineer OpenClassrooms**.

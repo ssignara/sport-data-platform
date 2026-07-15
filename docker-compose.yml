@@ -13,55 +13,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
-  metabase:
-    image: metabase/metabase:latest
-    container_name: sport_metabase
-    ports:
-      - "3000:3000"
-    depends_on:
-      - postgres
-    restart: unless-stopped
-
-  kestra:
-    image: kestra/kestra:latest
-    container_name: sport_kestra
-    command: server standalone
-    working_dir: /app/project
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres
-      - redpanda
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: sport_data
-      DB_USER: sport_user
-      DB_PASSWORD: sport_password
-      KAFKA_BOOTSTRAP_SERVER: redpanda:9092
-      PYTHONPATH: /app/project
-      KESTRA_CONFIGURATION: |
-        datasources:
-          postgres:
-            url: jdbc:postgresql://postgres:5432/sport_data
-            driverClassName: org.postgresql.Driver
-            username: sport_user
-            password: sport_password
-
-        kestra:
-          repository:
-            type: postgres
-          queue:
-            type: postgres
-          storage:
-            type: local
-            local:
-              basePath: "/app/storage"
-    volumes:
-      - kestra_storage:/app/storage
-      - ./:/app/project
-    restart: unless-stopped
-
   redpanda:
     image: redpandadata/redpanda:latest
     container_name: sport_redpanda
@@ -79,9 +30,96 @@ services:
       - --node-id
       - "0"
       - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
     ports:
-      - "9092:9092"
+      - "19092:19092"
       - "9644:9644"
+    restart: unless-stopped
+
+  sport_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: sport_app
+    depends_on:
+      - postgres
+      - redpanda
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: sport_data
+      DB_USER: sport_user
+      DB_PASSWORD: sport_password
+      KAFKA_BOOTSTRAP_SERVER: redpanda:9092
+      PYTHONPATH: /app
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data/raw:/app/data/raw
+      - ./soda:/app/soda
+    restart: unless-stopped
+
+  soda:
+    build:
+      context: .
+      dockerfile: Dockerfile.soda
+    container_name: sport_soda
+    depends_on:
+      - postgres
+    volumes:
+      - ./soda:/app/soda
+    profiles:
+      - quality
+
+  kestra:
+    image: kestra/kestra:latest
+    container_name: sport_kestra
+    command: server standalone
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - sport_app
+    environment:
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://postgres:5432/sport_data
+            driverClassName: org.postgresql.Driver
+            username: sport_user
+            password: sport_password
+
+        kestra:
+          server:
+            basic-auth:
+              enabled: true
+              username: admin@kestra.io
+              password: Admin1234!
+
+          repository:
+            type: postgres
+          queue:
+            type: postgres
+          storage:
+            type: local
+            local:
+              basePath: "/app/storage"
+    volumes:
+      - kestra_storage:/app/storage
+    restart: unless-stopped
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: sport_metabase
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
     restart: unless-stopped
 
 volumes:
