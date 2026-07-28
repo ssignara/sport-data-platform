@@ -1,5 +1,7 @@
+import os
 import subprocess
 
+import psycopg2
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -11,7 +13,7 @@ from src.producers.live_activity import publish_live_activity
 app = FastAPI(
     title="Sport Data Platform API",
     description="API utilisée par Kestra pour orchestrer le pipeline sportif.",
-    version="1.1.0",
+    version="1.2.0",
 )
 
 
@@ -23,6 +25,39 @@ class LiveActivityRequest(BaseModel):
     comment: str | None = None
 
 
+def employee_exists(employee_id: int) -> bool:
+    """
+    Vérifie que le salarié existe dans la table bronze.employees.
+
+    La connexion utilise les variables d'environnement définies
+    dans docker-compose.yml.
+    """
+    connection = psycopg2.connect(
+        host=os.getenv("DB_HOST", "postgres"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        dbname=os.getenv("DB_NAME", "sport_data"),
+        user=os.getenv("DB_USER", "sport_user"),
+        password=os.getenv("DB_PASSWORD", "sport_password"),
+    )
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT 1
+                FROM bronze.employees
+                WHERE employee_id = %s
+                LIMIT 1
+                """,
+                (employee_id,),
+            )
+
+            return cursor.fetchone() is not None
+
+    finally:
+        connection.close()
+
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     """Vérifie que l'API est disponible."""
@@ -31,10 +66,21 @@ def health_check() -> dict[str, str]:
 
 @app.post("/generate")
 def generate() -> dict[str, str]:
-    """Génère l'historique des activités et le publie dans Redpanda."""
+    """
+    Génère l'historique des activités et le publie dans Redpanda.
+
+    Cet endpoint est destiné au workflow batch.
+    Il ne doit pas être utilisé après la création d'une activité
+    unique via /live-activity.
+    """
     try:
         generate_activities()
-        return {"status": "generated"}
+
+        return {
+            "status": "generated",
+            "message": "Les activités ont été générées et publiées.",
+        }
+
     except Exception as error:
         raise HTTPException(
             status_code=500,
@@ -44,8 +90,22 @@ def generate() -> dict[str, str]:
 
 @app.post("/live-activity")
 def create_live_activity(payload: LiveActivityRequest) -> dict:
-    """Publie une seule activité dans Redpanda pour la démonstration."""
+    """
+    Publie une seule activité dans Redpanda.
+
+    Le salarié est vérifié dans PostgreSQL avant publication afin
+    d'éviter la création d'une activité orpheline.
+    """
     try:
+        if not employee_exists(payload.employee_id):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Le salarié {payload.employee_id} n'existe pas "
+                    "dans la table bronze.employees."
+                ),
+            )
+
         activity = publish_live_activity(
             employee_id=payload.employee_id,
             sport_type=payload.sport_type,
@@ -56,8 +116,21 @@ def create_live_activity(payload: LiveActivityRequest) -> dict:
 
         return {
             "status": "published",
+            "message": "Une activité a été publiée dans Redpanda.",
             "activity": activity,
         }
+
+    except HTTPException:
+        raise
+
+    except psycopg2.Error as error:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Impossible de vérifier le salarié dans PostgreSQL : "
+                f"{error}"
+            ),
+        ) from error
 
     except Exception as error:
         raise HTTPException(
@@ -68,10 +141,18 @@ def create_live_activity(payload: LiveActivityRequest) -> dict:
 
 @app.post("/consume")
 def consume() -> dict[str, str]:
-    """Consomme les activités et les charge dans PostgreSQL."""
+    """
+    Consomme les activités disponibles dans Redpanda
+    et les charge dans PostgreSQL.
+    """
     try:
         consume_activities()
-        return {"status": "consumed"}
+
+        return {
+            "status": "consumed",
+            "message": "Les activités disponibles ont été consommées.",
+        }
+
     except Exception as error:
         raise HTTPException(
             status_code=500,
@@ -92,12 +173,32 @@ def quality_check() -> dict[str, str]:
         "/app/soda/checks.yml",
     ]
 
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+
+    except subprocess.TimeoutExpired as error:
+        raise HTTPException(
+            status_code=504,
+            detail={
+                "status": "quality_timeout",
+                "message": "Le contrôle qualité a dépassé 120 secondes.",
+            },
+        ) from error
+
+    except OSError as error:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "quality_execution_failed",
+                "message": f"Impossible d'exécuter Soda : {error}",
+            },
+        ) from error
 
     output = "\n".join(
         part.strip()
@@ -117,5 +218,6 @@ def quality_check() -> dict[str, str]:
 
     return {
         "status": "quality_passed",
+        "message": "Tous les contrôles qualité sont passés.",
         "output": output,
     }
