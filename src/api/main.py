@@ -1,5 +1,6 @@
 import os
 import subprocess
+from pathlib import Path
 
 import psycopg2
 from fastapi import FastAPI, HTTPException
@@ -9,11 +10,14 @@ from src.consumers.consume_activities import main as consume_activities
 from src.generators.generate_activities import main as generate_activities
 from src.producers.live_activity import publish_live_activity
 
+from src.generators.generate_daily_activities import (
+    main as generate_daily_activities,
+)
 
 app = FastAPI(
     title="Sport Data Platform API",
     description="API utilisée par Kestra pour orchestrer le pipeline sportif.",
-    version="1.2.0",
+    version="1.3.0",
 )
 
 
@@ -25,20 +29,25 @@ class LiveActivityRequest(BaseModel):
     comment: str | None = None
 
 
-def employee_exists(employee_id: int) -> bool:
+def get_database_connection():
     """
-    Vérifie que le salarié existe dans la table bronze.employees.
-
-    La connexion utilise les variables d'environnement définies
-    dans docker-compose.yml.
+    Ouvre une connexion vers PostgreSQL à partir des variables
+    d'environnement définies dans docker-compose.yml.
     """
-    connection = psycopg2.connect(
+    return psycopg2.connect(
         host=os.getenv("DB_HOST", "postgres"),
         port=int(os.getenv("DB_PORT", "5432")),
         dbname=os.getenv("DB_NAME", "sport_data"),
         user=os.getenv("DB_USER", "sport_user"),
         password=os.getenv("DB_PASSWORD", "sport_password"),
     )
+
+
+def employee_exists(employee_id: int) -> bool:
+    """
+    Vérifie que le salarié existe dans la table bronze.employees.
+    """
+    connection = get_database_connection()
 
     try:
         with connection.cursor() as cursor:
@@ -53,6 +62,42 @@ def employee_exists(employee_id: int) -> bool:
             )
 
             return cursor.fetchone() is not None
+
+    finally:
+        connection.close()
+
+
+def execute_sql_file(sql_file_path: Path) -> None:
+    """
+    Exécute l'intégralité d'un fichier SQL dans PostgreSQL.
+
+    Toutes les instructions sont exécutées dans une transaction :
+    - si tout fonctionne, la transaction est validée ;
+    - si une instruction échoue, toutes les modifications sont annulées.
+    """
+    if not sql_file_path.exists():
+        raise FileNotFoundError(
+            f"Le fichier SQL est introuvable : {sql_file_path}"
+        )
+
+    sql_content = sql_file_path.read_text(encoding="utf-8")
+
+    if not sql_content.strip():
+        raise ValueError(
+            f"Le fichier SQL est vide : {sql_file_path}"
+        )
+
+    connection = get_database_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql_content)
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
 
     finally:
         connection.close()
@@ -85,6 +130,36 @@ def generate() -> dict[str, str]:
         raise HTTPException(
             status_code=500,
             detail=f"Échec de la génération : {error}",
+        ) from error
+
+
+@app.post("/generate-daily")
+def generate_daily() -> dict:
+    """
+    Génère uniquement les nouvelles activités de la journée.
+
+    Cet endpoint est destiné au déclencheur quotidien Kestra.
+    Il ne recrée pas l'historique annuel.
+    """
+    try:
+        result = generate_daily_activities()
+
+        return {
+            "status": "generated",
+            "message": (
+                "Les activités quotidiennes ont été générées "
+                "et publiées dans Redpanda."
+            ),
+            **result,
+        }
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Échec de la génération quotidienne : "
+                f"{error}"
+            ),
         ) from error
 
 
@@ -157,6 +232,59 @@ def consume() -> dict[str, str]:
         raise HTTPException(
             status_code=500,
             detail=f"Échec de la consommation : {error}",
+        ) from error
+
+
+@app.post("/transform")
+def transform() -> dict[str, str]:
+    """
+    Exécute les transformations SQL après le chargement des données Bronze.
+
+    Le script crée ou met à jour les vues du schéma analytics afin que
+    Metabase dispose de données déjà nettoyées, converties, agrégées et
+    enrichies par les règles métier.
+    """
+    sql_file_path = Path("/app/sql/03_create_reporting_views.sql")
+
+    try:
+        execute_sql_file(sql_file_path)
+
+        return {
+            "status": "transformed",
+            "message": (
+                "Les données ont été transformées et les vues analytics "
+                "ont été créées ou mises à jour."
+            ),
+        }
+
+    except FileNotFoundError as error:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "transform_file_not_found",
+                "message": str(error),
+            },
+        ) from error
+
+    except psycopg2.Error as error:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "transform_database_failed",
+                "message": (
+                    "La transformation SQL a échoué dans PostgreSQL : "
+                    f"{error}"
+                ),
+            },
+        ) from error
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status": "transform_failed",
+                "message": f"Échec de la transformation : {error}",
+            },
         ) from error
 
 

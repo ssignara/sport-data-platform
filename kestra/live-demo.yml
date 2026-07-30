@@ -1,0 +1,17 @@
+id: live-demo
+namespace: sport
+
+description: >
+  Consomme l'activité publiée manuellement depuis Swagger,
+  la charge dans PostgreSQL puis contrôle sa qualité avec Soda.
+
+tasks:
+  - id: consume
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/consume
+    method: POST
+
+  - id: quality
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/quality
+    method: POST

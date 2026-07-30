@@ -1,14 +1,16 @@
-id: generate-consume-quality
+id: generate-consume-transform-quality
 namespace: sport
 
 description: >
-  Génère les activités sportives, les charge dans PostgreSQL
-  puis contrôle leur qualité avec Soda.
+  Génère les activités sportives, les charge dans PostgreSQL,
+  transforme les données pour l'analyse puis contrôle leur qualité avec Soda.
+  Le pipeline est exécuté automatiquement chaque jour à 8 h,
+  heure de Paris.
 
 tasks:
-  - id: generate
+  - id: generate_daily
     type: io.kestra.plugin.core.http.Request
-    uri: http://sport_app:8000/generate
+    uri: http://sport_app:8000/generate-daily
     method: POST
 
   - id: consume
@@ -16,7 +18,18 @@ tasks:
     uri: http://sport_app:8000/consume
     method: POST
 
+  - id: transform
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/transform
+    method: POST
+
   - id: quality
     type: io.kestra.plugin.core.http.Request
     uri: http://sport_app:8000/quality
     method: POST
+
+triggers:
+  - id: daily_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 8 * * *"
+    timezone: Europe/Paris

@@ -3,12 +3,14 @@ services:
   postgres:
     image: postgres:16
     container_name: sport_postgres
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: sport_user
-      POSTGRES_PASSWORD: sport_password
-      POSTGRES_DB: sport_data
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -50,12 +52,13 @@ services:
     env_file:
       - .env
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: sport_data
-      DB_USER: sport_user
-      DB_PASSWORD: sport_password
-      KAFKA_BOOTSTRAP_SERVER: redpanda:9092
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVER: ${KAFKA_BOOTSTRAP_SERVER}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
       PYTHONPATH: /app
     ports:
       - "8001:8000"
@@ -71,6 +74,8 @@ services:
     container_name: sport_soda
     depends_on:
       - postgres
+    env_file:
+      - .env
     volumes:
       - ./soda:/app/soda
     profiles:
@@ -85,21 +90,23 @@ services:
     depends_on:
       - postgres
       - sport_app
+    env_file:
+      - .env
     environment:
       KESTRA_CONFIGURATION: |
         datasources:
           postgres:
-            url: jdbc:postgresql://postgres:5432/sport_data
+            url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
             driverClassName: org.postgresql.Driver
-            username: sport_user
-            password: sport_password
+            username: ${DB_USER}
+            password: ${DB_PASSWORD}
 
         kestra:
           server:
             basic-auth:
               enabled: true
-              username: admin@kestra.io
-              password: Admin1234!
+              username: ${KESTRA_USERNAME}
+              password: ${KESTRA_PASSWORD}
 
           repository:
             type: postgres
