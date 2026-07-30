@@ -1,0 +1,64 @@
+id: initialize-sport-platform
+namespace: sport
+
+description: >
+  Initialise la plateforme à partir des données RH préalablement chargées.
+  Le workflow génère l'historique des activités sportives, publie les
+  événements dans Redpanda, les charge dans PostgreSQL, exécute les
+  transformations SQL puis contrôle la qualité des données avec Soda.
+  Ce workflow est déclenché manuellement une seule fois lors de
+  l'initialisation de la plateforme.
+
+concurrency:
+  limit: 1
+
+tasks:
+  - id: generate_history
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/generate
+    method: POST
+    timeout: PT10M
+    retry:
+      type: constant
+      interval: PT10S
+      maxAttempts: 3
+
+  - id: consume
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/consume
+    method: POST
+    timeout: PT10M
+    retry:
+      type: constant
+      interval: PT10S
+      maxAttempts: 3
+
+  - id: transform
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/transform
+    method: POST
+    timeout: PT10M
+    retry:
+      type: constant
+      interval: PT10S
+      maxAttempts: 3
+
+  - id: quality
+    type: io.kestra.plugin.core.http.Request
+    uri: http://sport_app:8000/quality
+    method: POST
+    timeout: PT10M
+    retry:
+      type: constant
+      interval: PT10S
+      maxAttempts: 3
+
+errors:
+  - id: initialization_failed
+    type: io.kestra.plugin.core.log.Log
+    level: ERROR
+    message: >
+      Échec de l'initialisation de la plateforme.
+      Exécution : {{ execution.id }}.
+      Consultez les logs Kestra afin d'identifier la tâche en erreur
+      avant de relancer le workflow.
